@@ -322,7 +322,7 @@ templates:
         target: <720p !dvdrip !webdl !sdtv !webrip !tvrip
         quality: <720p
         specials: no
-        #tracking: backfill
+        tracking: backfill
         #identified_by: ep
     thetvdb_lookup: yes #Getting meta information from thetvdb.com
     trakt_lookup: yes
