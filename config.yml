@@ -1,0 +1,535 @@
+############################################################################################
+#
+#        Name: Flexget Config File
+#      Author: Matthew Ronan
+#     Created: 11/12/2014
+# Description: This configuration file is designed to identify, locate, and download
+#              movies and television shows from watch lists provided by Trakt.tv. All
+#              lists will me managed and maintained within Trakt. Television shows are
+#              downloaded with a quality of HDTV less than 720p. Movies are downloaded
+#              with a quality of 1080p or 720p BluRay and DTS/AC3 5.1 audio. Push 
+#              notifications are sent upon successful download of new content. YIFY files
+#              are ignored at all costs. Files are downloaded to their respective directory
+#              on the available seedbox. Files are then sorted, named and moved accordingly.
+#              The torrent download engine of choice is transmission. The config file will
+#              leverage a secrets.yml file that contains all of the personal settings.
+#
+#     Version: 1.00 - 11/12/14 - Major Version - Initial config.yml with TV automation
+#              1.10 -          - Minor Version - Re-arranged the config to be cleaner
+#              1.20 -          - Minor Version - Added secrets.yml
+#              1.30 -          - Minor Version - Enhanced the transmission plugin to place 
+#                                files in the appropriate media directories on the seedbox
+#              2.00 - 11/11/15 - Major Version - Added support for movie download 
+#                                automation. Trakt will now provide a list of movies to be
+#                                downloaded. Movies are queued, sourced and downloaded if
+#                                quality matches and all rejections are passed.
+#              2.01 - 11/11/15 - Minor updates - Added flower box and code comments for 
+#                                clarifications.
+#              2.02 - 11/11/15 - Minor updates - Removed the notify_tv template from get_tv
+#                                task. Removed transmission_tv from get_tv task. Removed
+#                                !hdtv from the quality filter in the tv template
+#              2.10 - 11/12/15 - Minor Version - Updated Flexget to 1.2.386. Updated trakt
+#                                plugins to now use access tokens instead of passwords.
+#                                Added trakt_lookup to both movie and tv templates. Changed
+#                                trakt_watched to trakt_collected in tv template. Added
+#                                trakt_collected: reject to movie template.
+#              2.11 - 11/12/15 - Minor Updates - Added eztv.ag rss feed into inputs.
+#              2.12 - 11/13/15 - Minor Updates - adjusted quality settings for tv template
+#                                to use timeframe/target with a upper boundary of 720p
+#              2.13 - 11/14/15 - Minor Updates - Changed the move_tv lookin director to
+#                                /files/tv
+#              2.20 - 11/14/15 - Minor Version - Changed the pushover messaging. Changed
+#                                the file sorting naming convention to be much cleaner.
+#                                Added 25GB free space check prior to adding torrents.
+#                                Uncommented verify SSL, added required fields to tv temp.
+#                                Changed domain delay for torrentz to 10sec.
+#              2.30 - 11/17/15 - Minor Version - Commented out SSL verification. Added
+#                                chinese to reject list. Created a 720p movie search delayed
+#                                3 days. Added a clean transmission task
+#              
+#              
+############################################################################################
+############################################################################################
+#
+# All the secret things I don't want people knowing about
+#
+############################################################################################
+secrets: secrets.yml
+############################################################################################
+#
+# Global settings that apply to all templates/tasks
+#
+############################################################################################
+templates:
+  global:
+    # Make sure there's 25GB free before adding more downloads
+    free_space:
+      path: '{{ secrets.directory.base }}'
+      space: 25000
+##########
+#
+# Rejecting any entry that matches any of the below items:
+#  - Block any subbed/dubbed/etc videos
+#  - Block series/sequels, only accept one at a time
+#  - Block 3D content as I don't have any 3D displays
+#  - Block trailers that somehow get through as movies (annoying)
+#  - Block poor quality release groups that somehow got through the quality
+#  - Block anything related to cam, webscreen, or telesync
+#  - Block anything that is not english
+#
+##########
+    regexp:
+      reject:
+        - (s|d)ub(s|bed)?\b: {from: title}
+        - \b(duo|tri|quadri|tetra|penta)logy\b: {from: title}
+        - \b3-?D\b: {from: title}
+        - \btrailer\b: {from: title}
+        - \bR5\b: {from: title}
+        - \bWEBSCR\b: {from: title}
+        - \bscreener\b: {from: title}
+        - \bTS\b: {from: title}
+        - \bCam\b: {from: title}
+        - '{C_P}': {from: title}
+        - TrTd TeaM: {from: title}
+        - \[TNTVillage\]: {from: title}
+        - \[facepalm\]: {from: title}
+        #- \bASAP\b: {from: title}
+        - \bFASTSUB\b: {from: title}
+        - \bVOSTFR\b: {from: title}
+        - \bSubtitulado\b: {from: title}
+        - \bNORDiC\b: {from: title}
+        - \biPad\b: {from: title}
+        - \b(jap|chi|ita|ger|fra|spa|swe|nor|nordic|fr|kor|esp|nl|pl)\b: {from: title}
+        - \bR6\b: {from: title}
+        - \bTemporada\b: {from: title}
+        - \bDual\b: {from: title}
+        - \bchinese\b: {from: title}
+        - \bjapanese\b: {from: title}
+        - \bitalian\b: {from: title}
+        - \bspanish\b: {from: title}
+        - \bfrench\b: {from: title}
+        - \bgerman\b: {from: title}
+        - \bswedish\b: {from: title}
+        - \bsample\b: {from: title}
+        - \btalamasca32\b: {from: title}
+        - \bdublado\b: {from: title}
+        - \bchs\b: {from: title}
+##########
+#
+# I only want video files, no rar, no zip, no parts.
+#
+##########
+    content_filter:
+      require:
+        - '*.avi'
+        - '*.mkv'
+        - '*.mpg'
+        - '*.mp4'
+        - '*.m4v'
+        - '*.m4p'
+        - '*.mpeg'
+        - '*.mp2'
+        - '*.mpv'
+      reject:
+        - '*.rar'
+        - '*.zip'
+        - 'password.txt'
+        - '*.wmv'
+        - '*.r0*'
+        - '*.part0*'
+    private_torrents: no
+##########
+#
+# We don't want magnets being used - Currently disables until it becomes a problem
+#
+##########
+    #magnets: no
+##########
+#
+# We want to delay the lookup on torrent sites to avoid timeouts and hammering
+#
+##########
+    domain_delay:
+      torrentz.eu: 10 seconds
+      ezrss.it: 5 seconds
+      extratorrent.com: 5 seconds
+      kat.cr: 5 seconds
+      showrss.info: 5 seconds
+##########
+#
+# Verify SSL certificates
+#
+##########    
+    #verify_ssl_certificates: no
+##########
+#
+# Trakt lookup
+#
+##########
+    #trakt_lookup:
+    #  username: '{{ secrets.trakt.user }}'
+    #  account: '{{ secrets.trakt.acct }}' 
+##########
+#
+# Transmission settings for television
+#
+##########
+  transmission_tv:
+    transmission:
+      enabled: yes
+      host: '{{ secrets.transmission.host }}'
+      port: 48170
+      username: '{{ secrets.transmission.user }}'
+      password: '{{ secrets.transmission.pass }}'
+      addpaused: no # Start immediately once added
+      path: '{{ secrets.directory.tv }}'
+      magnetization_timeout: 30 # If magnet doesn't connect after 30 seconds timeout
+      main_file_only: yes # Try to extract the main file based on file size % of total
+      skip_files: # I do not care of any of these files
+        - '*.nfo'
+        - '*.sfv'
+        - '*.[sS]ample'
+        - '*.txt'
+      include_subs: no # Don't need subs
+##########
+#
+# Transmission settings for movies
+#
+##########  
+  transmission_mv:
+    transmission:
+      enabled: yes
+      host: '{{ secrets.transmission.host }}'
+      port: 48170
+      username: '{{ secrets.transmission.user }}'
+      password: '{{ secrets.transmission.pass }}'
+      addpaused: no # Start immediately once added
+      path: '{{ secrets.directory.mv }}'
+      content_filename: |
+        /{{ imdb_name|replace('/', '_')|replace(':', ' -')|replace(',', '') }} ({{ imdb_year }}) - {{ quality|upper }}
+      magnetization_timeout: 30 # If magnet doesn't connect after 30 seconds timeout
+      main_file_only: yes # Try to extract the main file based on file size % of total
+      skip_files: # I do not care of any of these files
+        - '*.nfo'
+        - '*.sfv'
+        - '*.[sS]ample'
+        - '*.txt'
+      include_subs: no # Don't need subs
+##########
+#
+# Transmission settings for cleaning up old torrents
+#
+########## 
+  Vaccuum:
+    clean_transmission:
+      host: '{{ secrets.transmission.host }}'
+      port: 48170
+      username: '{{ secrets.transmission.user }}'
+      password: '{{ secrets.transmission.pass }}'
+      min_ratio: 2 # Clean old torrents once they have completed downloading and seeding
+      transmission_seed_limits: Yes # We want to adhere to seed limits
+      enabled: Yes    
+##########
+#
+# Movie discovery template
+#
+##########
+  discover_movies:
+    movie_queue: accept
+    imdb_lookup: yes
+    trakt_lookup: yes
+    require_field:
+      - imdb_name
+      - imdb_year
+    discover:
+      what: 
+        - emit_movie_queue: yes
+      from:
+        - torrentz: verified
+        #- kat:
+        #    category: movies
+        #    verified: yes
+        - isohunt: movies
+        #- search_rss: https://yts.ag/rss/{{search_term|replace("%20","_")}}/All/All/0
+      interval: 4 hours
+    template:
+      - transmission_mv
+    regexp:
+      reject:
+        - \byify\b: {from: title}
+        - s\d+e\d+: {from: title}
+        - '\d{4}.\d{2}.\d{2}': {from: title}
+        #- \d+x\d+: {from: title}
+        - \baac2: {from: title} # No 2 channel audio
+    # Force proper_movies to run after regexp to avoid unnecessary imdb_lookup
+    plugin_priority:
+      regexp: 176
+      if: 177
+      proper_movies: 171
+    # Impose reasonable size constraints
+    content_size:
+      max: 5000
+      min: 750
+    if:
+      - trakt_collected: reject # Reject anything that has already been collected.
+      - trakt_watched: reject
+    # Download propers, since they will have the same content_filename,
+    # lower/non-propers will be overwritten
+    proper_movies: yes
+    trakt_remove:
+      username: '{{ secrets.trakt.user }}'
+      account: '{{ secrets.trakt.acct }}'
+      list: '{{ secrets.trakt_mv.list }}'
+    trakt_add:
+      username: '{{ secrets.trakt.user }}'
+      account: '{{ secrets.trakt.acct }}'
+      list: '{{ secrets.trakt_mv_watch.list }}'
+    pushover:
+      userkey: '{{ secrets.pushover.user }}'
+      apikey: '{{ secrets.pushover.api }}'
+      device: '{{ secrets.pushover.device }}'
+      title: 'Now Downloading {{imdb_name}}'
+      message: 'The movie {{imdb_name}} with a score of {{imdb_score}} is being downloaded with a {{quality}} quality and {{content_size}}MB in size.'
+      sound: Tug Boat
+##########
+#
+# Configuring the series I follow from trakt.
+#
+##########
+  tv:
+    configure_series:
+      from:
+        trakt_list:
+          username: '{{ secrets.trakt.user }}'
+          account: '{{ secrets.trakt.acct }}'
+          list: '{{ secrets.trakt_tv.list }}'
+          type: '{{ secrets.trakt_tv.type }}'
+      settings:
+        exact: yes
+#        from_group:
+#          - ettv
+#          - eztv
+#          - killers
+#          - rarbg
+#          - fleet
+#          - crooks
+#          - dimension
+#          - fum
+#          - lol
+#          - rartv
+        propers: 3 days #give it 2 days for propers
+        timeframe: 12 hours
+        target: <720p !dvdrip !webdl !sdtv !webrip !tvrip
+        quality: <720p
+        specials: no
+        #tracking: backfill
+        #identified_by: ep
+    thetvdb_lookup: yes #Getting meta information from thetvdb.com
+    trakt_lookup: yes
+    #require_field: [tvdb_id]
+    if:
+      - '[0] == [series_episode]': reject # Episode 0 is always garbage.
+      - trakt_collected: reject # Reject anything that has already been collected.
+    inputs:
+      - rss: http://extratorrent.com/rss.xml?cid=8
+      - rss: https://eztv.ag/ezrss.xml
+      - rss: https://rarbg.to/rssdd.php?categories=18;19;41
+      - rss: http://torrentz.eu/feed?verified&q=tv%20shows
+      - rss: http://showrss.info/feeds/all.rss
+      #- rss: http://kat.ph/tv/?rss=1
+    template:
+      - transmission_tv
+    pushover:
+      userkey: '{{ secrets.pushover.user }}'
+      apikey: '{{ secrets.pushover.api }}'
+      device: '{{ secrets.pushover.device }}'
+      title: 'Now Downloading {{series_name}}-{{series_id}}'
+      message: "The show {{ tvdb_series_name|default(series_name) }}, episode {{ series_id }}{% if tvdb_ep_name|default(False) %} - {{ tvdb_ep_name }}{% endif %} with a quality of {{ quality|upper }} is being downloaded"
+      #message: 'The show {{series_name}}, episode {{series_id}} with a quality of {{quality}} is being downloaded.'
+      url: "{% if trakt_series_url is defined and trakt_season is defined and trakt_episode is defined %}{{ trakt_series_url }}/season/{{ trakt_season }}/episode/{{ trakt_episode }}{% endif %}"
+      sound: Tug Boat
+############################################################################################
+#
+# All the tasks for Flexget to execute in order of priority
+#
+############################################################################################
+tasks:  
+##########
+#
+# Getting tv shows from various RSS feeds and downloading
+#
+##########
+  get_tv:
+    priority: 10
+    #torrent_alive: 5
+    template: 
+      - tv
+    #quality: hdtv <720p
+##########
+#
+# Queueing up the movies I want to download
+#
+##########
+  movie_queue:
+    priority: 20
+    template: no_global
+    trakt_list:
+      username: '{{ secrets.trakt.user }}'
+      account: '{{ secrets.trakt.acct }}'
+      list: '{{ secrets.trakt_mv.list }}'
+      type: '{{ secrets.trakt_mv.type }}'
+    no_entries_ok: yes
+    sort_by:
+      reverse: yes
+    limit_new: 10
+    accept_all: yes
+    movie_queue: add
+##########
+#
+# Searching for the queued movies in 1080p quality and downloading them
+#
+##########
+  movie_search:
+    priority: 30
+    template:
+      - discover_movies
+    quality: 1080p+ bluray+ h264|h265 truehd|dtshd|dd5.1|dts|ac3
+##########
+#
+# Searching for the queued movies in 720p quality after 3 days and downloading them
+#
+##########
+  movie_search:
+    priority: 40
+    delay: 3 days
+    template:
+      - discover_movies
+    quality: 720p+ bluray+ h264|h265 truehd|dtshd|dd5.1|dts|ac3
+##########
+#
+# Moving and sorting current TV
+#
+##########
+  move_tv:
+    priority: 50
+    no_entries_ok: yes
+    disable:
+      - seen
+    #  - retry_failed
+    #  - seen_info_hash
+    template: no_global
+    metainfo_series: yes 
+    accept_all: yes
+    thetvdb_lookup: yes
+    require_field: series_id
+    filesystem:
+      path: '{{ secrets.directory.tv }}'
+      regexp: '.*\.(avi|mkv|mp4|mpg|m4v|m4p|mpeg|mp2|mpv)$'
+      recursive: yes
+    series:
+      settings:
+        group 1:
+          parse_only: yes
+    regexp:
+      accept:
+        - hdtv
+      reject:
+        - sample
+        - yify
+        - BRRip
+        - BluRay
+    move:
+      to: >
+        {{ secrets.directory.tv }}
+#        /home/elronino/files/tv/{{ series_name|replace('/', '_')|replace(':', ' -') }}/{% if series_id_type == 'ep' %}Season {{series_season|pad(2)}}/{% endif %}
+      filename: >
+        {{ series_name|replace('/', '_')|replace(':', ' -') }} - {% if series_id_type == 'ep' and thetvdb_lookup_season_offset|default(False) %}{{ "S%0.2dE%0.2d"|format((series_season + thetvdb_lookup_season_offset),series_episode) }}{% else %}{{ series_id }}{% endif %}{% if ep_name|default(False) %} - {{ ep_name|replace('/', '_')|replace(':', ' -') }}{% endif %} - {{ quality|upper }}.{{ location[-3:] }}
+      clean_source: 65
+##########
+#
+# Moving and sorting TV series
+#
+##########
+  move_tv_series:
+    priority: 60
+    no_entries_ok: yes
+    disable:
+      - seen
+    #  - retry_failed
+    #  - seen_info_hash
+    template: no_global
+    metainfo_series: yes 
+    accept_all: yes
+    thetvdb_lookup: yes
+    require_field: tvdb_ep_id
+    filesystem:
+      path: '{{ secrets.directory.series }}'
+      regexp: '.*\.(avi|mkv|mp4|mpg|m4v|m4p|mpeg|mp2|mpv)$'
+      recursive: yes
+    series:
+      settings:
+        group 1:
+          parse_only: yes
+    regexp:
+      accept:
+        - hdtv
+      reject:
+        - sample
+        - yify
+        - BRRip
+        - BluRay
+    move:
+      to: >
+        {{ secrets.directory.series }}
+#        /home/elronino/files/tv_series/{{ series_name|replace('/', '_')|replace(':', ' -') }}/{% if series_id_type == 'ep' %}Season {{series_season|pad(2)}}/{% endif %}
+      filename: >
+        {{ series_name|replace('/', '_')|replace(':', ' -') }} - {% if series_id_type == 'ep' and thetvdb_lookup_season_offset|default(False) %}{{ "S%0.2dE%0.2d"|format((series_season + thetvdb_lookup_season_offset),series_episode) }}{% else %}{{ series_id }}{% endif %}{% if ep_name|default(False) %} - {{ ep_name|replace('/', '_')|replace(':', ' -') }}{% endif %} - {{ quality|upper }}.{{ location[-3:] }}
+      clean_source: 65
+##########
+#
+# Moving and sorting movies
+#
+##########
+  move_movie:
+    priority: 70
+    no_entries_ok: yes
+    disable:
+      - seen
+    #  - retry_failed
+    #  - seen_info_hash
+    template: no_global
+    metainfo_series: yes 
+    accept_all: yes
+    imdb_lookup: yes
+    require_field:
+      - imdb_name
+      - imdb_year
+    filesystem:
+      path: '{{ secrets.directory.mv }}'
+      regexp: '.*\.(avi|mkv|mp4|mpg|m4v|m4p|mpeg|mp2|mpv)$'
+      recursive: yes
+    regexp:  
+      accept:
+        - BRRip
+        - BluRay
+      reject:
+        - sample
+        - hdtv
+    move:
+      to: >
+        {{ secrets.directory.mv }}
+#        /home/elronino/files/movie/{{ imdb_name|replace('/', '_')|replace(':', ' -')|replace(',', '') }} ({{ imdb_year }})
+      filename: >
+        {{ imdb_name|replace('/', '_')|replace(':', ' -')|replace(',', '') }} ({{ imdb_year }}) - {{ quality|upper }}
+      clean_source: 65
+##########
+#
+# Removing completed torrents
+#
+##########
+  Cleanup:
+    interval: 4 hours
+    template:
+      - Vaccuum
+      - no_global
+    disable: [details] 
